@@ -330,9 +330,9 @@ contract BurnableToken is ReleasableToken {
 
 
 /**
-  *  GANA
+  *  GanaToken
   */
-contract GANA is BurnableToken {
+contract GanaToken is BurnableToken {
 
   string public constant name = "GANA";
   string public constant symbol = "GANA";
@@ -340,8 +340,8 @@ contract GANA is BurnableToken {
 
   event ClaimedTokens(address manager, address _token, uint256 claimedBalance);
 
-  function GANA() public {
-    totalSupply = 2000000000 * 1 ether;
+  function GanaToken() public {
+    totalSupply = 2400000000 * 1 ether;
     balances[msg.sender] = totalSupply;
   }
 
@@ -359,189 +359,27 @@ contract GANA is BurnableToken {
 
 
 /**
-  *  Whitelist contract
+  *  GanaToken LOCKER
   */
-contract Whitelist is Ownable {
+contract GanaTokenLocker {
+  GanaToken gana;
+  uint256 public releaseTime = 1554076800; //UTC 04/01/2019 12:00am
+  address public owner;
 
-   mapping (address => bool) public whitelist;
-   event Registered(address indexed _addr);
-   event Unregistered(address indexed _addr);
+  event Unlock();
 
-   modifier onlyWhitelisted(address _addr) {
-     require(whitelist[_addr]);
-     _;
-   }
-
-   function isWhitelist(address _addr) public view returns (bool listed) {
-     return whitelist[_addr];
-   }
-
-   function registerAddress(address _addr) public onlyOwner {
-     require(_addr != address(0) && whitelist[_addr] == false);
-     whitelist[_addr] = true;
-     Registered(_addr);
-   }
-
-   function registerAddresses(address[] _addrs) public onlyOwner {
-     for(uint256 i = 0; i < _addrs.length; i++) {
-       require(_addrs[i] != address(0) && whitelist[_addrs[i]] == false);
-       whitelist[_addrs[i]] = true;
-       Registered(_addrs[i]);
-     }
-   }
-
-   function unregisterAddress(address _addr) public onlyOwner onlyWhitelisted(_addr) {
-       whitelist[_addr] = false;
-       Unregistered(_addr);
-   }
-
-   function unregisterAddresses(address[] _addrs) public onlyOwner {
-     for(uint256 i = 0; i < _addrs.length; i++) {
-       require(whitelist[_addrs[i]]);
-       whitelist[_addrs[i]] = false;
-       Unregistered(_addrs[i]);
-     }
-   }
-
-}
-
-
-/**
-  *  GANA PUBLIC-SALE
-  */
-contract GanaPublicSale is Ownable {
-  using SafeMath for uint256;
-
-  GANA public gana;
-  Whitelist public whitelist;
-  address public wallet;
-  uint256 public hardCap   = 30000 ether; //publicsale cap
-  uint256 public weiRaised = 0;
-  uint256 public defaultRate = 20000;
-
-  //uint256 public startTime = 1483228800; //TEST ONLY UTC 01/01/2017 00:00am
-  uint256 public startTime = 1524218400; //UTC 04/20/2018 10:00am
-  uint256 public endTime   = 1526637600; //UTC 05/18/2018 10:00am
-
-  event TokenPurchase(address indexed sender, address indexed buyer, uint256 weiAmount, uint256 ganaAmount);
-  event Refund(address indexed buyer, uint256 weiAmount);
-  event TransferToSafe();
-  event BurnAndReturnAfterEnded(uint256 burnAmount, uint256 returnAmount);
-
-  function GanaPublicSale(address _gana, address _wallet, address _whitelist) public {
-    require(_wallet != address(0));
-    gana = GANA(_gana);
-    whitelist = Whitelist(_whitelist);
-    wallet = _wallet;
+  function GanaTokenLocker(address _gana, address _owner) public {
+    require(_owner != address(0));
+    owner = _owner;
+    gana = GanaToken(_gana);
   }
 
-  modifier onlyWhitelisted() {
-    require(whitelist.isWhitelist(msg.sender));
-    _;
-  }
-
-  // fallback function can be used to buy tokens
-  function () external payable {
-    buyGana(msg.sender);
-  }
-
-  function buyGana(address buyer) public onlyWhitelisted payable {
-    require(!hasEnded());
-    require(afterStart());
-    require(buyer != address(0));
-    require(msg.value > 0);
-    require(buyer == msg.sender);
-
-    uint256 weiAmount = msg.value;
-    //pre-calculate wei raise after buying
-    uint256 preCalWeiRaised = weiRaised.add(weiAmount);
-    uint256 ganaAmount;
-    uint256 rate = getRate();
-
-    if(preCalWeiRaised <= hardCap){
-      //the pre-calculate wei raise is less than the hard cap
-      ganaAmount = weiAmount.mul(rate);
-      gana.saleTransfer(buyer, ganaAmount);
-      weiRaised = preCalWeiRaised;
-      TokenPurchase(msg.sender, buyer, weiAmount, ganaAmount);
-    }else{
-      //the pre-calculate weiRaised is more than the hard cap
-      uint256 refundWeiAmount = preCalWeiRaised.sub(hardCap);
-      uint256 fundWeiAmount =  weiAmount.sub(refundWeiAmount);
-      ganaAmount = fundWeiAmount.mul(rate);
-      gana.saleTransfer(buyer, ganaAmount);
-      weiRaised = weiRaised.add(fundWeiAmount);
-      TokenPurchase(msg.sender, buyer, fundWeiAmount, ganaAmount);
-      buyer.transfer(refundWeiAmount);
-      Refund(buyer,refundWeiAmount);
-    }
-  }
-
-  function getRate() public view returns (uint256) {
-    if(weiRaised < 12500 ether){
-      return 21000;
-    }else if(weiRaised < 25000 ether){
-      return 20500;
-    }else{
-      return 20000;
-    }
-  }
-
-  //Was it sold out or sale overdue
-  function hasEnded() public view returns (bool) {
-    bool hardCapReached = weiRaised >= hardCap; // balid cap
-    return hardCapReached || afterEnded();
-  }
-
-  function afterEnded() internal constant returns (bool) {
-    return now > endTime;
-  }
-
-  function afterStart() internal constant returns (bool) {
-    return now >= startTime;
-  }
-
-  function transferToSafe() onlyOwner public {
-    require(hasEnded());
-    wallet.transfer(this.balance);
-    TransferToSafe();
-  }
-
-  /**
-  * @dev burn unsold token and return bonus token
-  * @param reserveWallet reserve pool address
-  */
-  function burnAndReturnAfterEnded(address reserveWallet) onlyOwner public {
-    require(reserveWallet != address(0));
-    require(hasEnded());
-    uint256 unsoldWei = hardCap.sub(weiRaised);
-    uint256 ganaBalance = gana.balanceOf(this);
-    require(ganaBalance > 0);
-
-    if(unsoldWei > 0){
-      //Burn unsold and return bonus
-      uint256 unsoldGanaAmount = ganaBalance;
-      uint256 burnGanaAmount = unsoldWei.mul(defaultRate);
-      uint256 bonusGanaAmount = unsoldGanaAmount.sub(burnGanaAmount);
-      gana.burn(burnGanaAmount);
-      gana.saleTransfer(reserveWallet, bonusGanaAmount);
-      BurnAndReturnAfterEnded(burnGanaAmount, bonusGanaAmount);
-    }else{
-      //All tokens were sold. return bonus
-      gana.saleTransfer(reserveWallet, ganaBalance);
-      BurnAndReturnAfterEnded(0, ganaBalance);
-    }
-  }
-
-  /**
-  * @dev emergency function before sale
-  * @param returnAddress return token address
-  */
-  function returnGanaBeforeSale(address returnAddress) onlyOwner public {
-    require(returnAddress != address(0));
-    require(weiRaised == 0);
-    uint256 returnGana = gana.balanceOf(this);
-    gana.saleTransfer(returnAddress, returnGana);
+  function unlock() public {
+    require(msg.sender == owner);
+    require(releaseTime < now);
+    uint256 unlockGana = gana.balanceOf(this);
+    gana.transfer(owner, unlockGana);
+    Unlock();
   }
 
 }

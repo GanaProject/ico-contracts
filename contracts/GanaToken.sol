@@ -330,9 +330,9 @@ contract BurnableToken is ReleasableToken {
 
 
 /**
-  *  GANA
+  *  GanaToken
   */
-contract GANA is BurnableToken {
+contract GanaToken is BurnableToken {
 
   string public constant name = "GANA";
   string public constant symbol = "GANA";
@@ -340,8 +340,8 @@ contract GANA is BurnableToken {
 
   event ClaimedTokens(address manager, address _token, uint256 claimedBalance);
 
-  function GANA() public {
-    totalSupply = 2000000000 * 1 ether;
+  function GanaToken() public {
+    totalSupply = 2400000000 * 1 ether;
     balances[msg.sender] = totalSupply;
   }
 
@@ -353,33 +353,6 @@ contract GANA is BurnableToken {
     address manager = msg.sender;
     token.transfer(manager, _claimedBalance);
     ClaimedTokens(manager, _token, _claimedBalance);
-  }
-
-}
-
-
-/**
-  *  GANA LOCKER
-  */
-contract GanaLocker {
-  GANA gana;
-  uint256 public releaseTime = 1554076800; //UTC 04/01/2019 12:00am
-  address public owner;
-
-  event Unlock();
-
-  function GanaLocker(address _gana, address _owner) public {
-    require(_owner != address(0));
-    owner = _owner;
-    gana = GANA(_gana);
-  }
-
-  function unlock() public {
-    require(msg.sender == owner);
-    require(releaseTime < now);
-    uint256 unlockGana = gana.balanceOf(this);
-    gana.transfer(owner, unlockGana);
-    Unlock();
   }
 
 }
